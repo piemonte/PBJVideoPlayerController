@@ -59,6 +59,7 @@ static float const PBJVideoPlayerControllerRates[PBJVideoPlayerRateCount] = { 0.
 
 @synthesize delegate = _delegate;
 @synthesize videoPath = _videoPath;
+@synthesize repeatMode = _repeatMode;
 @synthesize playbackState = _playbackState;
 @synthesize bufferingState = _bufferingState;
 @synthesize tapGestureRecognizer = _tapGestureRecognizer;
@@ -162,6 +163,12 @@ static float const PBJVideoPlayerControllerRates[PBJVideoPlayerRateCount] = { 0.
         // notifications
         [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_playerItemDidPlayToEndTime:) name:AVPlayerItemDidPlayToEndTimeNotification object:_playerItem];
         [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_playerItemFailedToPlayToEndTime:) name:AVPlayerItemFailedToPlayToEndTimeNotification object:_playerItem];
+    }
+
+    if (_repeatMode == PBJVideoPlayerRepeatModeNone) {
+        _player.actionAtItemEnd = AVPlayerActionAtItemEndPause;
+    } else {
+        _player.actionAtItemEnd = AVPlayerActionAtItemEndNone;
     }
 
     [_player replaceCurrentItemWithPlayerItem:_playerItem];
@@ -357,7 +364,9 @@ typedef void (^PBJVideoPlayerBlock)();
 - (void)_playerItemDidPlayToEndTime:(NSNotification *)aNotification
 {
     [_player seekToTime:kCMTimeZero];
-    [self stop];
+    if (_repeatMode == PBJVideoPlayerRepeatModeNone) {
+        [self stop];
+    }
 }
 
 - (void)_playerItemFailedToPlayToEndTime:(NSNotification *)aNotification
