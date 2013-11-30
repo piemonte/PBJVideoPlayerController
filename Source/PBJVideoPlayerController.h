@@ -20,6 +20,11 @@ typedef NS_ENUM(NSInteger, PBJVideoPlayerBufferingState) {
     PBJVideoPlayerBufferingStateDelayed,
 };
 
+typedef NS_ENUM(NSInteger, PBJVideoPlayerRepeatMode) {
+    PBJVideoPlayerRepeatModeNone = 0,
+    PBJVideoPlayerRepeatModeLoop,
+};
+
 // PBJVideoPlayerController.view provides us with an interface for playing/streaming videos
 @protocol PBJVideoPlayerControllerDelegate;
 @interface PBJVideoPlayerController : UIViewController
@@ -29,6 +34,7 @@ typedef NS_ENUM(NSInteger, PBJVideoPlayerBufferingState) {
 @property (nonatomic, weak) id<PBJVideoPlayerControllerDelegate> delegate;
 
 @property (nonatomic) NSString *videoPath;
+@property (nonatomic) PBJVideoPlayerRepeatMode repeatMode;
 
 @property (nonatomic, readonly) PBJVideoPlayerPlaybackState playbackState;
 @property (nonatomic, readonly) PBJVideoPlayerBufferingState bufferingState;
