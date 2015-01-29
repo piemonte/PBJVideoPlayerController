@@ -51,6 +51,8 @@ static NSString * const PBJVideoPlayerControllerRateKey = @"rate";
 static NSString * const PBJVideoPlayerControllerStatusKey = @"status";
 static NSString * const PBJVideoPlayerControllerEmptyBufferKey = @"playbackBufferEmpty";
 static NSString * const PBJVideoPlayerControllerPlayerKeepUpKey = @"playbackLikelyToKeepUp";
+static NSString * const PBJVideoPlayerControllerLoadedTimeRangesKey = @"loadedTimeRanges";
+
 
 // KVO player layer keys
 static NSString * const PBJVideoPlayerControllerReadyForDisplay = @"readyForDisplay";
@@ -71,6 +73,8 @@ static NSString * const PBJVideoPlayerControllerReadyForDisplay = @"readyForDisp
 
     PBJVideoPlayerPlaybackState _playbackState;
     PBJVideoPlayerBufferingState _bufferingState;
+    
+    id _playbackTimeObserver;
     
     // flags
     struct {
@@ -215,7 +219,8 @@ static NSString * const PBJVideoPlayerControllerReadyForDisplay = @"readyForDisp
         [_playerItem removeObserver:self forKeyPath:PBJVideoPlayerControllerEmptyBufferKey context:(__bridge void *)(PBJVideoPlayerItemObserverContext)];
         [_playerItem removeObserver:self forKeyPath:PBJVideoPlayerControllerPlayerKeepUpKey context:(__bridge void *)(PBJVideoPlayerItemObserverContext)];
         [_playerItem removeObserver:self forKeyPath:PBJVideoPlayerControllerStatusKey context:(__bridge void *)(PBJVideoPlayerItemObserverContext)];
-
+        [_playerItem removeObserver:self forKeyPath:PBJVideoPlayerControllerLoadedTimeRangesKey context:(__bridge void *)(PBJVideoPlayerItemObserverContext)];
+        
         // notifications
         [[NSNotificationCenter defaultCenter] removeObserver:self name:AVPlayerItemDidPlayToEndTimeNotification object:_playerItem];
         [[NSNotificationCenter defaultCenter] removeObserver:self name:AVPlayerItemFailedToPlayToEndTimeNotification object:_playerItem];
@@ -229,6 +234,7 @@ static NSString * const PBJVideoPlayerControllerReadyForDisplay = @"readyForDisp
         [_playerItem addObserver:self forKeyPath:PBJVideoPlayerControllerEmptyBufferKey options:(NSKeyValueObservingOptionNew | NSKeyValueObservingOptionOld) context:(__bridge void *)(PBJVideoPlayerItemObserverContext)];
         [_playerItem addObserver:self forKeyPath:PBJVideoPlayerControllerPlayerKeepUpKey options:(NSKeyValueObservingOptionNew | NSKeyValueObservingOptionOld) context:(__bridge void *)(PBJVideoPlayerItemObserverContext)];
         [_playerItem addObserver:self forKeyPath:PBJVideoPlayerControllerStatusKey options:(NSKeyValueObservingOptionNew | NSKeyValueObservingOptionOld) context:(__bridge void *)(PBJVideoPlayerItemObserverContext)];
+        [_playerItem addObserver:self forKeyPath:PBJVideoPlayerControllerLoadedTimeRangesKey options:(NSKeyValueObservingOptionNew | NSKeyValueObservingOptionOld) context:(__bridge void *)(PBJVideoPlayerItemObserverContext)];
         
         // notifications
         [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_playerItemDidPlayToEndTime:) name:AVPlayerItemDidPlayToEndTimeNotification object:_playerItem];
@@ -248,6 +254,8 @@ static NSString * const PBJVideoPlayerControllerReadyForDisplay = @"readyForDisp
 
 - (void)dealloc
 {
+    [_player removeTimeObserver:_playbackTimeObserver];
+    
     _videoView.player = nil;
     _delegate = nil;
 
@@ -276,7 +284,19 @@ static NSString * const PBJVideoPlayerControllerReadyForDisplay = @"readyForDisp
 
     // Player KVO
     [_player addObserver:self forKeyPath:PBJVideoPlayerControllerRateKey options:(NSKeyValueObservingOptionNew | NSKeyValueObservingOptionOld) context:(__bridge void *)(PBJVideoPlayerObserverContext)];
-
+    
+    // Player Observer
+    __weak __typeof(self) weakSelf = self;
+    _playbackTimeObserver = [_player addPeriodicTimeObserverForInterval:CMTimeMake(1, 1) queue:NULL usingBlock:^(CMTime time) {
+        __strong __typeof(weakSelf) strongSelf = weakSelf;
+        if ([strongSelf->_delegate respondsToSelector:@selector(videoPlayer:readDurationDidChange:)]) {
+            if (strongSelf->_playerItem.status == AVPlayerStatusReadyToPlay && strongSelf->_videoView.playerLayer.readyForDisplay) {
+                NSTimeInterval readDuration = CMTimeGetSeconds(strongSelf->_playerItem.currentTime);
+                [strongSelf->_delegate videoPlayer:strongSelf readDurationDidChange:readDuration];
+            }
+        }
+    }];
+    
     // load the playerLayer view
     _videoView = [[PBJVideoView alloc] initWithFrame:CGRectZero];
     _videoView.videoFillMode = AVLayerVideoGravityResizeAspect;
@@ -287,7 +307,7 @@ static NSString * const PBJVideoPlayerControllerReadyForDisplay = @"readyForDisp
     [_videoView.playerLayer addObserver:self forKeyPath:PBJVideoPlayerControllerReadyForDisplay options:(NSKeyValueObservingOptionNew | NSKeyValueObservingOptionOld) context:(__bridge void *)(PBJVideoPlayerLayerObserverContext)];
     
     // Application NSNotifications
-    NSNotificationCenter *nc = [NSNotificationCenter defaultCenter];        
+    NSNotificationCenter *nc = [NSNotificationCenter defaultCenter];
     [nc addObserver:self selector:@selector(_applicationWillResignActive:) name:UIApplicationWillResignActiveNotification object:nil];
     [nc addObserver:self selector:@selector(_applicationDidEnterBackground:) name:UIApplicationDidEnterBackgroundNotification object:nil];
 }
@@ -449,6 +469,15 @@ typedef void (^PBJVideoPlayerBlock)();
         [self pause];
 }
 
+- (NSTimeInterval)bufferDuration {
+    NSArray *loadedTimeRanges = [_playerItem loadedTimeRanges];
+    CMTimeRange timeRange = [loadedTimeRanges.firstObject CMTimeRangeValue];// 获取缓冲区域
+    Float64 startSeconds = CMTimeGetSeconds(timeRange.start);
+    Float64 durationSeconds = CMTimeGetSeconds(timeRange.duration);
+    NSTimeInterval result = startSeconds + durationSeconds;// 计算缓冲总进度
+    return result;
+}
+
 #pragma mark - KVO
 
 - (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary *)change context:(void *)context
@@ -461,40 +490,49 @@ typedef void (^PBJVideoPlayerBlock)();
         
         // PlayerItem KVO
         
-        if ([keyPath isEqualToString:PBJVideoPlayerControllerEmptyBufferKey]) {
-            if (_playerItem.playbackBufferEmpty) {
-                DLog(@"playback buffer is empty");
+        if ([keyPath isEqualToString:PBJVideoPlayerControllerLoadedTimeRangesKey]) {
+            if ([_delegate respondsToSelector:@selector(videoPlayer:bufferDurationDidChange:)]) {
+                NSTimeInterval bufferDuration = [self bufferDuration];
+                
+                [_delegate videoPlayer:self bufferDurationDidChange:bufferDuration];
             }
-        } else if ([keyPath isEqualToString:PBJVideoPlayerControllerPlayerKeepUpKey]) {
-            if (_playerItem.playbackLikelyToKeepUp) {
-                DLog(@"playback buffer is likely to keep up");
-                if (_playbackState == PBJVideoPlayerPlaybackStatePlaying) {
-                    [self playFromCurrentTime];
+            
+        } else {
+            if ([keyPath isEqualToString:PBJVideoPlayerControllerEmptyBufferKey]) {
+                if (_playerItem.playbackBufferEmpty) {
+                    DLog(@"playback buffer is empty");
                 }
+            } else if ([keyPath isEqualToString:PBJVideoPlayerControllerPlayerKeepUpKey]) {
+                if (_playerItem.playbackLikelyToKeepUp) {
+                    DLog(@"playback buffer is likely to keep up");
+                    if (_playbackState == PBJVideoPlayerPlaybackStatePlaying) {
+                        [self playFromCurrentTime];
+                    }
+                }
+            }
+            
+            AVPlayerStatus status = [change[NSKeyValueChangeNewKey] integerValue];
+            switch (status)
+            {
+                case AVPlayerStatusReadyToPlay:
+                {
+                    _videoView.playerLayer.backgroundColor = [[UIColor blackColor] CGColor];
+                    [_videoView.playerLayer setPlayer:_player];
+                    _videoView.playerLayer.hidden = NO;
+                    break;
+                }
+                case AVPlayerStatusFailed:
+                {
+                    _playbackState = PBJVideoPlayerPlaybackStateFailed;
+                    [_delegate videoPlayerPlaybackStateDidChange:self];
+                    break;
+                }
+                case AVPlayerStatusUnknown:
+                default:
+                    break;
             }
         }
         
-        AVPlayerStatus status = [change[NSKeyValueChangeNewKey] integerValue];
-        switch (status)
-        {
-            case AVPlayerStatusReadyToPlay:
-            {
-                _videoView.playerLayer.backgroundColor = [[UIColor blackColor] CGColor];
-                [_videoView.playerLayer setPlayer:_player];
-                _videoView.playerLayer.hidden = NO;
-                break;
-            }
-            case AVPlayerStatusFailed:
-            {
-                _playbackState = PBJVideoPlayerPlaybackStateFailed;
-                [_delegate videoPlayerPlaybackStateDidChange:self];
-                break;
-            }
-            case AVPlayerStatusUnknown:
-            default:
-                break;
-        }
-
     } else if ( context == (__bridge void *)(PBJVideoPlayerLayerObserverContext) ) {
     
         // PlayerLayer KVO

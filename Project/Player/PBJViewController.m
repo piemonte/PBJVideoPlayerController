@@ -70,15 +70,38 @@ static NSString * const PBJViewControllerVideoPath = @"http://distilleryvesper7-
     _videoPlayerController.videoPath = PBJViewControllerVideoPath;
 }
 
+#pragma mark - ConvertTime Helper Method
+
+- (NSString *)convertTime:(Float64)second {
+    NSDate *d = [NSDate dateWithTimeIntervalSince1970:second];
+    NSDateFormatter *formatter = [[NSDateFormatter alloc] init];
+    if (second / 3600 >= 1) {
+        [formatter setDateFormat:@"HH:mm:ss"];
+    } else {
+        [formatter setDateFormat:@"mm:ss"];
+    }
+    NSString *showtimeNew = [formatter stringFromDate:d];
+    return showtimeNew;
+}
+
 #pragma mark - PBJVideoPlayerControllerDelegate
 
 - (void)videoPlayerReady:(PBJVideoPlayerController *)videoPlayer
 {
-    //NSLog(@"Max duration of the video: %f", videoPlayer.maxDuration);
+    NSLog(@"Max duration of the video: %f", videoPlayer.maxDuration);
 }
 
 - (void)videoPlayerPlaybackStateDidChange:(PBJVideoPlayerController *)videoPlayer
 {
+}
+
+- (void)videoPlayer:(PBJVideoPlayerController *)videoPlayer readDurationDidChange:(NSTimeInterval)readDuration {
+    NSString *timeString = [self convertTime:readDuration];
+    NSLog(@"%@", [NSString stringWithFormat:@"%@/%@", timeString, [self convertTime:videoPlayer.maxDuration]]);
+}
+
+- (void)videoPlayer:(PBJVideoPlayerController *)videoPlayer bufferDurationDidChange:(Float64)bufferDuration {
+    NSLog(@"~~~~~~缓冲进度：%f", bufferDuration / videoPlayer.maxDuration);
 }
 
 - (void)videoPlayerPlaybackWillStartFromBeginning:(PBJVideoPlayerController *)videoPlayer
