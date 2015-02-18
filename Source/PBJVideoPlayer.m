@@ -176,6 +176,17 @@ static NSString * const PBJVideoPlayerControllerReadyForDisplay = @"readyForDisp
     return maxDuration;
 }
 
+- (BOOL)muted
+{
+    return _player.muted;
+}
+
+- (void)setMuted:(BOOL)muted
+{
+    DLog(@"muted: %u", muted);
+    _player.muted = muted;
+}
+
 - (void)_setAsset:(AVAsset *)asset
 {
     if (_asset == asset)
