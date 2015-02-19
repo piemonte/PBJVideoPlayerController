@@ -213,16 +213,26 @@ static NSString * const PBJVideoPlayerControllerReadyForDisplay = @"readyForDisp
                 NSError *error = nil;
                 AVKeyValueStatus keyStatus = [asset statusOfValueForKey:key error:&error];
                 if (keyStatus == AVKeyValueStatusFailed) {
+                    DLog("asset load failed: %@", error);
                     _playbackState = PBJVideoPlayerPlaybackStateFailed;
                     [_delegate videoPlayerPlaybackStateDidChange:self];
+                    if (_retries > 0) {
+                        _retries--;
+                        self.videoPath = self.videoPath; // force reload
+                    }
                     return;
                 }
             }
 
             // check playable
             if (!_asset.playable) {
+                DLog("asset is not playable");
                 _playbackState = PBJVideoPlayerPlaybackStateFailed;
                 [_delegate videoPlayerPlaybackStateDidChange:self];
+                if (_retries > 0) {
+                    _retries--;
+                    self.videoPath = self.videoPath; // force reload
+                }
                 return;
             }
 
@@ -386,7 +396,7 @@ typedef void (^PBJVideoPlayerBlock)();
 {
     _playbackState = PBJVideoPlayerPlaybackStateFailed;
     [_delegate videoPlayerPlaybackStateDidChange:self];
-    DLog(@"error (%@)", [[aNotification userInfo] objectForKey:AVPlayerItemFailedToPlayToEndTimeErrorKey]);
+    DLog(@"video failed to play to end (%@)", [[aNotification userInfo] objectForKey:AVPlayerItemFailedToPlayToEndTimeErrorKey]);
 }
 
 #pragma mark - App NSNotifications
@@ -440,8 +450,13 @@ typedef void (^PBJVideoPlayerBlock)();
             }
             case AVPlayerStatusFailed:
             {
+                DLog("playback failed: %@", _playerItem.error);
                 _playbackState = PBJVideoPlayerPlaybackStateFailed;
                 [_delegate videoPlayerPlaybackStateDidChange:self];
+                if (_retries > 0) {
+                    _retries--;
+                    self.videoPath = self.videoPath; // force reload
+                }
                 break;
             }
             case AVPlayerStatusUnknown:
