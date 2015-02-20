@@ -61,7 +61,6 @@ static NSString * const PBJVideoPlayerControllerReadyForDisplay = @"readyForDisp
 
 @interface PBJVideoPlayer ()
 {
-    AVAsset *_asset;
     AVPlayer *_player;
     AVPlayerItem *_playerItem;
 
@@ -135,7 +134,7 @@ static NSString * const PBJVideoPlayerControllerReadyForDisplay = @"readyForDisp
     _videoPath = [videoPath copy];
 
     AVURLAsset *asset = [AVURLAsset URLAssetWithURL:videoURL options:nil];
-    [self _setAsset:asset];
+    [self setAsset:asset];
 }
 
 - (BOOL)playbackLoops
@@ -187,7 +186,7 @@ static NSString * const PBJVideoPlayerControllerReadyForDisplay = @"readyForDisp
     _player.muted = muted;
 }
 
-- (void)_setAsset:(AVAsset *)asset
+- (void)setAsset:(AVAsset *)asset
 {
     if (_asset == asset)
         return;

@@ -40,12 +40,18 @@ typedef NS_ENUM(NSInteger, PBJVideoPlayerBufferingState) {
 
 // PBJVideoPlayerController.view provides the interface for playing/streaming videos
 @protocol PBJVideoPlayerDelegate;
+@class AVAsset;
 
 @interface PBJVideoPlayer : NSObject
 
 @property (nonatomic, weak) id<PBJVideoPlayerDelegate> delegate;
 
+// if you want to set the AVAsset manually, you can do so here
+@property (nonatomic) AVAsset *asset;
+
+// if you'd rather specify a path to your video than create an AVAsset, set videoPath
 @property (nonatomic, copy) NSString *videoPath;
+
 @property (nonatomic, copy) NSString *videoFillMode; // default, AVLayerVideoGravityResizeAspect
 @property (nonatomic, readonly) PBJVideoView * videoView;
 
