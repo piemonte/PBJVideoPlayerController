@@ -310,7 +310,7 @@ static NSString * const PBJVideoPlayerControllerReadyForDisplay = @"readyForDisp
 
 - (void)_videoPlayerAudioSessionActive:(BOOL)active
 {
-    NSString *category = active ? AVAudioSessionCategoryPlayback : AVAudioSessionCategoryAmbient;
+    NSString *category = (active && !self.muted) ? AVAudioSessionCategoryPlayback : AVAudioSessionCategoryAmbient;
     
     NSError *error = nil;
     [[AVAudioSession sharedInstance] setCategory:category error:&error];
@@ -339,6 +339,7 @@ static NSString * const PBJVideoPlayerControllerReadyForDisplay = @"readyForDisp
     DLog(@"playing...");
     
     _playbackState = PBJVideoPlayerPlaybackStatePlaying;
+    [self _videoPlayerAudioSessionActive:YES];
     [_delegate videoPlayerPlaybackStateDidChange:self];
     [_player play];
 }
@@ -352,6 +353,7 @@ static NSString * const PBJVideoPlayerControllerReadyForDisplay = @"readyForDisp
     
     [_player pause];
     _playbackState = PBJVideoPlayerPlaybackStatePaused;
+    [self _videoPlayerAudioSessionActive:NO];
     [_delegate videoPlayerPlaybackStateDidChange:self];
 }
 
@@ -364,6 +366,7 @@ static NSString * const PBJVideoPlayerControllerReadyForDisplay = @"readyForDisp
 
     [_player pause];
     _playbackState = PBJVideoPlayerPlaybackStateStopped;
+    [self _videoPlayerAudioSessionActive:NO];
     [_delegate videoPlayerPlaybackStateDidChange:self];
 }
 
