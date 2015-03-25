@@ -236,6 +236,7 @@ static NSString * const PBJVideoPlayerControllerReadyForDisplay = @"readyForDisp
             }
 
             // setup player
+            [self _videoPlayerAudioSessionActive:NO]; // the next line causes the audio mode to change, so we need to update it here in addition to when we play
             AVPlayerItem *playerItem = [AVPlayerItem playerItemWithAsset:_asset];
             [self _setPlayerItem:playerItem];
             
